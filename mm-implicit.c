@@ -25,6 +25,26 @@
 # define dbg_printf(...)
 #endif
 
+/*macro*/
+#define WSIZE 4	//Word크기 결정
+#define DSIZE 8 //double Word크기 결정
+#define CHUNKSIZE (1<<12)	//초기heap크기설정
+#define OVERHEAD 8	//overhead사이즈
+
+#define MAX(x,y) ((x)>(y)?(x):(y))	//x,y중 큰값
+#define PACK(size,alloc) ((size)|(alloc))	//size,alloc값을 묶음
+
+#define GET(p) (*(size_t*)(p))	//포인터의 위치에서word크기
+#define PUT(p,val) (*(size_t*)(p)=(val))	//포인터위치에서 word크기의 val값을 쓴다
+
+#define GET_SIZE(p) (GET(p)&~0x7)	//Header에서 block size읽음
+#define GET_ALLOC(p) (GET(p)&0x1)	//block할당  여부
+
+#define HDRP(bp) ((char*)(bp)-WSIZE)	//bp의 header주소
+#define FTRP(bp) ((char*)(bp)+GET_SIZE(HDRP(bp)-DSIZE))	//dp의 footer주소 계산
+#define NEXT_BLKP(bp) ((char*)(bp)+GET_SIZE((char*)(bp)-WSIZE))	//bp를 이용해서 다음block주소계산
+#define PREV_BLKP(bp) ((char*)(bp)-GET_SIZE((char*)(bp)-DSIZE))	//bp를이용해서 이전 block주소계산
+/*macro*/
 
 /* do not change the following! */
 #ifdef DRIVER
@@ -45,7 +65,20 @@
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
-    return 0;
+   
+	if((heap_listp = mem_sbrk(4*WSIZE)) == NULL)	//초기heap
+		return -1;
+
+	PUT(heap_listp, 0);	//정렬을 위한 값
+	PUT(heap_listp + WSIZE, PACK(OVERHEAD, 1));
+	PUT(heap_listp + DSIZE, PACK(OVERHEAD, 1));
+	PUT(heap_listp + WSIZE + DSIZE, PACK(0, 1));
+	heap_listp += DSIZE;
+
+	if((extend_heap(CHUNKSIZE/WSIZE)) == NULL)
+		return -1;
+
+	return 0;
 }
 
 /*
