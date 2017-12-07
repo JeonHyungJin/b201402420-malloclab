@@ -61,6 +61,15 @@
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
 
+static void *extend_heap(size_t words);
+static void *coalesce(void *bp);
+static void *find_fit(size_t asize);
+static void place(void *bp, size_t asize);
+
+static char *heap_list=0;
+static char *next_p;
+
+
 /*
  * Initialize: return -1 on error, 0 on success.
  */
@@ -74,6 +83,8 @@ int mm_init(void) {
 	PUT(heap_listp + DSIZE, PACK(OVERHEAD, 1));
 	PUT(heap_listp + WSIZE + DSIZE, PACK(0, 1));
 	heap_listp += DSIZE;
+	
+	next_p = heap_list;
 
 	if((extend_heap(CHUNKSIZE/WSIZE)) == NULL)
 		return -1;
@@ -85,9 +96,61 @@ int mm_init(void) {
  * malloc
  */
 void *malloc (size_t size) {
-    return NULL;
+	size_t asize;
+	size_t extendsize;
+	char *bp;
+
+	if(size == 0){	//size가 0인경우
+	return NULL;
+	}
+	/*size<=8인 경우*/
+	if(size<= DSIZE)
+		asize = DSIZE + OVERHEAD;
+	else
+		asize = DSIZE*((size+(DSIZE)+(DSIZE-1))/DSZIE);
+	//빈 공간 탐색
+	if((bp = find_fit(asize))!=NULL){
+		place(bp,asize);
+		return bp;
+	}
+	//heap확장
+	extendsize = MAX(asize,CHUNKSIZE);
+	if((bp = extend_heap(extendsize/WSIZE))==NULL)
+		return NULL;
+	place(bp,asize);
+	return bp;
 }
 
+/*coalesce() 인접한 free상태의 블록을 합쳐준다.*/
+void *coalesce(void *bp){
+}
+
+/*palce() bp위치에 asize크기의 메모리를 위치시켜준다.*/
+static void place(void *bp, size_t asize){
+
+}
+
+/*extend_heap() 요청받은 크기의 빈 블록을 만든다.*/
+static void *extend_heap(size_t words)
+{
+	char *bp;
+	size_t size;
+
+	size = (words % 2) ? (words + 1) * WSIZE : words * WSIZE;
+	if((long)(bp=mem_sbrk(size))==-1)
+		return NULL;
+
+	PUT(HDRP(bp),PACK(size,0));
+	PUT(FTRP(bp),PACK(size,0));
+	PUT(HDRP(NEXT_BLKP(bp)),PACK(0,1));
+
+	return coalesce(bp);
+}
+
+/*free block을 검색*/
+static void *find_fit(size_t asize){
+
+}
 /*
  * free
  */
