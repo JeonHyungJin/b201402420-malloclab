@@ -62,12 +62,12 @@
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
 
 static void *extend_heap(size_t words);
-static void *coalesce(void *bp);
+void *coalesce(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 
 static char *heap_list=0;
-static char *next_p;
+static char *next_bp;
 
 
 /*
@@ -84,7 +84,7 @@ int mm_init(void) {
 	PUT(heap_listp + WSIZE + DSIZE, PACK(0, 1));
 	heap_listp += DSIZE;
 	
-	next_p = heap_list;
+	next_bp = heap_list;
 
 	if((extend_heap(CHUNKSIZE/WSIZE)) == NULL)
 		return -1;
@@ -148,7 +148,16 @@ static void *extend_heap(size_t words)
 }
 
 /*free block을 검색*/
-static void *find_fit(size_t asize){
+static void *find_fit(size_t asize){	//NEXT fit방식으로 구현된 find_fit
+	char *bp;
+
+	for(bp = next_bp;GET_SIZE(HDRP(bp))>0;bp=NEXT_BLKP(bp)){
+		if(!GET_ALLOC(HDRP(bp))&&(asize<=GET_SIZE(HDRP(bp)))){
+			next_bp=bp;
+			return bp;
+		}
+	}
+	return NULL;
 
 }
 /*
@@ -156,6 +165,12 @@ static void *find_fit(size_t asize){
  */
 void free (void *ptr) {
     if(!ptr) return;
+	size_t size = GET_SIZE(HDRP(ptr));
+		
+	PUT(HDRP(ptr),PACK(size,0));
+	PUT(FTRP(ptr),PACK(size,0));
+
+	next_bp = coalesce(ptr);
 }
 
 /*
