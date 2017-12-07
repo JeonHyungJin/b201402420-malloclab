@@ -34,16 +34,16 @@
 #define MAX(x,y) ((x)>(y)?(x):(y))	//x,y중 큰값
 #define PACK(size,alloc) ((size)|(alloc))	//size,alloc값을 묶음
 
-#define GET(p) (*(size_t*)(p))	//포인터의 위치에서word크기
-#define PUT(p,val) (*(size_t*)(p)=(val))	//포인터위치에서 word크기의 val값을 쓴다
+#define GET(p) (*(unsigned int *)(p))	//포인터의 위치에서word크기
+#define PUT(p,val) (*(unsigned int *)(p)=(val))	//포인터위치에서 word크기의 val값을 쓴다
 
 #define GET_SIZE(p) (GET(p)&~0x7)	//Header에서 block size읽음
 #define GET_ALLOC(p) (GET(p)&0x1)	//block할당  여부
 
-#define HDRP(bp) ((char*)(bp)-WSIZE)	//bp의 header주소
-#define FTRP(bp) ((char*)(bp)+GET_SIZE(HDRP(bp)-DSIZE))	//dp의 footer주소 계산
-#define NEXT_BLKP(bp) ((char*)(bp)+GET_SIZE((char*)(bp)-WSIZE))	//bp를 이용해서 다음block주소계산
-#define PREV_BLKP(bp) ((char*)(bp)-GET_SIZE((char*)(bp)-DSIZE))	//bp를이용해서 이전 block주소계산
+#define HDRP(bp) ((char *)(bp)-WSIZE)	//bp의 header주소
+#define FTRP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp))-DSIZE)	//dp의 footer주소 계산
+#define NEXT_BLKP(bp) ((char *)(bp)+GET_SIZE((char *)(bp)-WSIZE))	//bp를 이용해서 다음block주소계산
+#define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE((char *)(bp)-DSIZE))	//bp를이용해서 이전 block주소계산
 /*macro*/
 
 /* do not change the following! */
@@ -60,6 +60,9 @@
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
+
+#define SIZE_T_SIZE	(ALIGN(sizeof(size_t)))
+#define SIE_PTR(p)	((size_t*)(((char*)(p))-SIZE_T_SIZE)
 
 static void *extend_heap(size_t words);
 void *coalesce(void *bp);
@@ -81,12 +84,12 @@ int mm_init(void) {
 	PUT(heap_listp, 0);	//정렬을 위한 값
 	PUT(heap_listp + WSIZE, PACK(OVERHEAD, 1));
 	PUT(heap_listp + DSIZE, PACK(OVERHEAD, 1));
-	PUT(heap_listp + WSIZE + DSIZE, PACK(0, 1));
+	PUT(heap_listp +(WSIZE + DSIZE), PACK(0, 1));
 	heap_listp += DSIZE;
 	
 	next_bp = heap_listp;
 
-	if((extend_heap(CHUNKSIZE/WSIZE)) == NULL)
+	if(extend_heap(CHUNKSIZE/WSIZE) == NULL)
 		return -1;
 
 	return 0;
@@ -101,13 +104,13 @@ void *malloc (size_t size) {
 	char *bp;
 
 	if(size == 0){	//size가 0인경우
-	return NULL;
+		return NULL;
 	}
 	/*size<=8인 경우*/
 	if(size<= DSIZE)
 		asize = DSIZE + OVERHEAD;
 	else
-		asize = DSIZE*((size+(DSIZE)+(DSIZE-1))/DSZIE);
+		asize = DSIZE*((size+(DSIZE)+(DSIZE-1))/DSIZE);
 	//빈 공간 탐색
 	if((bp = find_fit(asize))!=NULL){
 		place(bp,asize);
@@ -115,15 +118,43 @@ void *malloc (size_t size) {
 	}
 	//heap확장
 	extendsize = MAX(asize,CHUNKSIZE);
-	if((bp = extend_heap(extendsize/WSIZE))==NULL)
+	if((bp = extend_heap(extendsize/WSIZE))==NULL){
 		return NULL;
+	}
 	place(bp,asize);
 	return bp;
 }
 
 /*coalesce() 인접한 free상태의 블록을 합쳐준다.*/
 void *coalesce(void *bp){
-
+	//이전 블럭의 할당 여부
+	size_t prev_alloc = GET_ALLOC(FTRP(PREV_BLKP(bp)));
+	//다음 블럭의 할당 여부
+	size_t next_alloc = GET_ALLOC(HDRP(NEXT_BLKP(bp)));
+	
+	size_t size = GET_SIZE(HDRP(bp));
+	
+	if(prev_alloc&&next_alloc){	//앞,뒤 모두 할당된 경우
+		return bp;
+	}
+	else if(prev_alloc && !next_alloc){	//앞 블록만 할당된 경우
+		size+=GET_SIZE(HDRP(NEXT_BLKP(bp)));
+		PUT(HDRP(bp),PACK(size,0));
+		PUT(FTRP(bp),PACK(size,0));
+	}
+	else if(!prev_alloc&&next_alloc){	//뒤 블록만 할당된 경우
+		size+=GET_SIZE(HDRP(PREV_BLKP(bp)));
+		PUT(FTRP(bp),PACK(size,0));
+		PUT(HDRP(PREV_BLKP(bp)),PACK(size,0));
+		bp=PREV_BLKP(bp);
+	}
+	else{	//모두 할당 안된 경우
+		size+=GET_SIZE(HDRP(PREV_BLKP(bp)))+GET_SIZE(FTRP(NEXT_BLKP(bp)));
+		PUT(HDRP(PREV_BLKP(bp)),PACK(size,0));
+		PUT(FTRP(NEXT_BLKP(bp)),PACK(size,0));
+		bp=PREV_BLKP(bp);
+	}
+	return bp;
 }
 
 /*palce() bp위치에 asize크기의 메모리를 위치시켜준다.*/
@@ -194,8 +225,8 @@ void *realloc(void *oldptr, size_t size) {
 	void *newptr;
 
 	if(size==0){
-	free(oldptr);
-	return 0;
+		free(oldptr);
+		return 0;
 	}
 
 	if(oldptr == NULL){
@@ -204,10 +235,10 @@ void *realloc(void *oldptr, size_t size) {
 	newptr = malloc(size);
 
 	if(!newptr){
-	return 0;
+		return 0;
 	}
 
-	oldsize = *SIZE_PTR(oldptr);
+	oldsize = GET_SIZE(HDRP((oldptr)));
 	if(size < oldsize) oldsize = size;
 	memcpy(newptr, oldptr, oldsize);
 
@@ -221,6 +252,7 @@ void *realloc(void *oldptr, size_t size) {
  * This function is not tested by mdriver, but it is
  * needed to run the traces.
  */
+
 void *calloc (size_t nmemb, size_t size) {
   	size_t bytes = nmemb * size;
 	void *newptr;
@@ -236,6 +268,7 @@ void *calloc (size_t nmemb, size_t size) {
  * Return whether the pointer is in the heap.
  * May be useful for debugging.
  */
+
 static int in_heap(const void *p) {
     return p < mem_heap_hi() && p >= mem_heap_lo();
 }
@@ -244,9 +277,11 @@ static int in_heap(const void *p) {
  * Return whether the pointer is aligned.
  * May be useful for debugging.
  */
+
 static int aligned(const void *p) {
     return (size_t)ALIGN(p) == (size_t)p;
 }
+
 
 /*
  * mm_checkheap
