@@ -66,7 +66,7 @@ void *coalesce(void *bp);
 static void *find_fit(size_t asize);
 static void place(void *bp, size_t asize);
 
-static char *heap_list=0;
+static char *heap_listp=0;
 static char *next_bp;
 
 
@@ -84,7 +84,7 @@ int mm_init(void) {
 	PUT(heap_listp + WSIZE + DSIZE, PACK(0, 1));
 	heap_listp += DSIZE;
 	
-	next_bp = heap_list;
+	next_bp = heap_listp;
 
 	if((extend_heap(CHUNKSIZE/WSIZE)) == NULL)
 		return -1;
@@ -123,11 +123,24 @@ void *malloc (size_t size) {
 
 /*coalesce() 인접한 free상태의 블록을 합쳐준다.*/
 void *coalesce(void *bp){
+
 }
 
 /*palce() bp위치에 asize크기의 메모리를 위치시켜준다.*/
 static void place(void *bp, size_t asize){
+	size_t rsize = GET_SIZE(HDRP(bp));
 
+	if((rsize-asize)>=(OVERHEAD+WSIZE)){
+		PUT(HDRP(bp),PACK(asize,1));
+		PUT(FTRP(bp),PACK(asize,1));
+
+		bp=NEXT_BLKP(bp);
+		PUT(HDRP(bp),PACK(rsize-asize,0));
+		PUT(FTRP(bp),PACK(rsize-asize,0));
+	}else{
+		PUT(HDRP(bp),PACK(rsize,1));
+		PUT(FTRP(bp),PACK(rsize,1));
+	}
 }
 
 /*extend_heap() 요청받은 크기의 빈 블록을 만든다.*/
@@ -177,7 +190,30 @@ void free (void *ptr) {
  * realloc - you may want to look at mm-naive.c
  */
 void *realloc(void *oldptr, size_t size) {
-    return NULL;
+	size_t oldsize;
+	void *newptr;
+
+	if(size==0){
+	free(oldptr);
+	return 0;
+	}
+
+	if(oldptr == NULL){
+		return malloc(size);
+	}
+	newptr = malloc(size);
+
+	if(!newptr){
+	return 0;
+	}
+
+	oldsize = *SIZE_PTR(oldptr);
+	if(size < oldsize) oldsize = size;
+	memcpy(newptr, oldptr, oldsize);
+
+	free(oldptr);
+
+	return newptr;
 }
 
 /*
@@ -186,7 +222,13 @@ void *realloc(void *oldptr, size_t size) {
  * needed to run the traces.
  */
 void *calloc (size_t nmemb, size_t size) {
-    return NULL;
+  	size_t bytes = nmemb * size;
+	void *newptr;
+
+	newptr = malloc(bytes);
+	memset(newptr, 0, bytes);
+
+	return newptr;
 }
 
 
