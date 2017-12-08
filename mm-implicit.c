@@ -174,7 +174,7 @@ static void place(void *bp, size_t asize){
 	}
 }
 
-/*extend_heap() 요청받은 크기의 빈 블록을 만든다.*/
+/*extend_heap() heap을 확장 시켜주는 함수.*/
 static void *extend_heap(size_t words)
 {
 	char *bp;
