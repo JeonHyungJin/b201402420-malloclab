@@ -38,8 +38,46 @@
 /* single word (4) or double word (8) alignment */
 #define ALIGNMENT 8
 
+/*macro*/
+#define HDRSIZE 4
+#define FTRSIZE 4
+#define WSIZE 4	//Word크기 결정
+#define DSIZE 8 //double Word크기 결정
+#define CHUNKSIZE (1<<12)	//초기heap크기설정
+#define OVERHEAD 8	//overhead사이즈
+
+#define MAX(x,y) ((x)>(y)?(x):(y))	//x,y중 큰값
+#define MIN(x,y) ((x)<(y)?(x):(y))
+#define PACK(size,alloc) ((size)|(alloc))	//size,alloc값을 묶음
+
+#define GET(p) (*(unsigned *)(p))	
+#define PUT(p,val) (*(unsigned *)(p)=(unsigned)(val))
+#define GET8(p) (*(unsigned long *)(p))
+#define PUT8(p,val) (*(unsigned long *)(p)=(unsigned long)(val))
+#define GET_SIZE(p) (GET(p)&~0x7)	//Header에서 block size읽음
+#define GET_ALLOC(p) (GET(p)&0x1)	//block할당  여부
+
+#define HDRP(bp) ((char *)(bp)-WSIZE)	//bp의 header주소
+#define FTRP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp))-DSIZE)	//dp의 footer주소 계산
+#define NEXT_BLKP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp)))	//bp를 이용해서 다음block주소계산
+#define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE((char *)(bp)-DSIZE))	//bp를이용해서 이전 block주소계산
+
+#define NEXT_FREEP(bp) ((char *)(bp))
+#define PREV_FREEP(bp) ((char *)(bp)+WSIZE)
+
+#define NEXT_FREE_BLKP(bp) ((char *)GET8((char *)(bp)))
+#define PREV_FREE_BLKP(bp) ((char *)GET8((char *)(bp)+WSIZE))
+
+#define ALIGN(p) (((size_t)(p)+(7))&~(0x7))
+
+#define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
+#define SIZE_PTR(p) ((size_t*)(((char *)(p))-SIZE_T_SIZE))
+/*macro*/
+
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
+
+void* free_bp=NULL;
 
 /*
  * Initialize: return -1 on error, 0 on success.

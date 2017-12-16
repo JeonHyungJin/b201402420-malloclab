@@ -193,6 +193,7 @@ static void *extend_heap(size_t words)
 
 /*free block을 검색*/
 static void *find_fit(size_t asize){	//NEXT fit방식으로 구현된 find_fit
+
 	char *bp;
 
 	for(bp = next_bp;GET_SIZE(HDRP(bp))>0;bp=NEXT_BLKP(bp)){
@@ -202,7 +203,7 @@ static void *find_fit(size_t asize){	//NEXT fit방식으로 구현된 find_fit
 		}
 	}
 	return NULL;
-
+	
 }
 /*
  * free
