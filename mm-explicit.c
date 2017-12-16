@@ -83,7 +83,14 @@ void* free_bp=NULL;
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
-    return 0;
+ 	void * heap_bottom = mem_heap_lo();
+	free_bp = NULL;
+	if((heap_bottom = mem_sbrk(2*WSIZE))==(void*)-1){
+		return -1;
+	}
+	PUT(heap_bottom,Pack(0,1));
+	PUT((char*)heap_bottom+WSIZE,PACK(0,1));
+	return 0;
 }
 
 /*
