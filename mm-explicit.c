@@ -181,7 +181,28 @@ void free (void *ptr) {
  * realloc - you may want to look at mm-naive.c
  */
 void *realloc(void *oldptr, size_t size) {
-    return NULL;
+    size_t oldsize;
+	void *newptr;
+
+	if(size==0){
+		mm_free(ptr);
+		return 0;
+	}
+	if(ptr==NULL){
+		return mm_malloc(size);
+	}
+	newptr = mm_malloc(size);
+
+	if(!newptr){
+		return 0;
+	}
+	oldsize = GET_SIZE(HDRP(ptr));
+	if(size < oldsize)	oldsize = size;
+	memcpy(newptr,ptr,oldsize);
+
+	mm_free(ptr);
+
+	return newptr;
 }
 
 /*
@@ -190,7 +211,11 @@ void *realloc(void *oldptr, size_t size) {
  * needed to run the traces.
  */
 void *calloc (size_t nmemb, size_t size) {
-    return NULL;
+    size_t bytes = nmemb * size;
+	void *newptr;
+	newptr = malloc(bytes);
+	memset(newptr, 0 ,bytes);
+	return newptr;
 }
 
 
