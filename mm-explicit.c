@@ -68,14 +68,19 @@
 #define NEXT_FREE_BLKP(bp) ((char *)GET8((char *)(bp)))
 #define PREV_FREE_BLKP(bp) ((char *)GET8((char *)(bp)+WSIZE))
 
-#define ALIGN(p) (((size_t)(p)+(7))&~(0x7))
-
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 #define SIZE_PTR(p) ((size_t*)(((char *)(p))-SIZE_T_SIZE))
 /*macro*/
 
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
+
+static void #extend_heap(size_t size, void *bp);
+static void *find_fit(size_t asize, void *bp);
+static void coalesce(void *ptr);
+static void *place(void *ptr, size_t asize);
+static void free_ptr_add(void *ptr);
+static void free_ptr_delete(void *ptr);
 
 void* free_bp=NULL;
 
@@ -97,7 +102,42 @@ int mm_init(void) {
  * malloc
  */
 void *malloc (size_t size) {
-    return NULL;
+	if(size <= 0){
+		return NULL;
+	}
+	unsigned int asize;
+	void *bp = free_bp;
+
+	if(size<=4*DSIZE){
+		asize=4*DSIZE;
+	}else{
+		asize = ALIGN(size);
+	}
+
+	bp = find_fit(asize,bp);
+
+	return bp;
+}
+
+static void *find_fit(size_t asize, void *bp){
+	unsigned int tempsize = 0;
+	while(bp != NULL){
+		tempsize = GET_SIZE(HDRP(bp));
+		if(tempsize>=asize){
+			if(tempsize>=asize+32){
+				return place(bp,asize);
+			}
+			free_ptr_delete(bp);
+			PUT(HDRP(bp),PACK(tempsize,1));
+			PUT(FTRP(bp),PACK(tempsize,1));
+			return bp;
+		}
+		else{
+			bp=NEXT_FREEP(bp);
+		}
+	}
+	bp=extend_heap(asize,bp);
+	return bp;
 }
 
 /*
