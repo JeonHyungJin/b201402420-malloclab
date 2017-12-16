@@ -88,11 +88,14 @@ void* free_bp=NULL;
  * Initialize: return -1 on error, 0 on success.
  */
 int mm_init(void) {
- 	void * heap_bottom = mem_heap_lo();
-	free_bp = NULL;
+ 	//초기 empty heap
+	void * heap_bottom = mem_heap_lo();
+	free_bp = NULL;	//초기화
 	if((heap_bottom = mem_sbrk(2*WSIZE))==(void*)-1){
+		//초기 heap크기 확장
 		return -1;
 	}
+	//할당
 	PUT(heap_bottom,Pack(0,1));
 	PUT((char*)heap_bottom+WSIZE,PACK(0,1));
 	return 0;
@@ -102,13 +105,13 @@ int mm_init(void) {
  * malloc
  */
 void *malloc (size_t size) {
-	if(size <= 0){
+	if(size <= 0){	//할당사이즈 0이하
 		return NULL;
 	}
 	unsigned int asize;
 	void *bp = free_bp;
 
-	if(size<=4*DSIZE){
+	if(size<=4*DSIZE){	//할당사이즈가 32이하
 		asize=4*DSIZE;
 	}else{
 		asize = ALIGN(size);
@@ -120,14 +123,14 @@ void *malloc (size_t size) {
 }
 
 static void *find_fit(size_t asize, void *bp){
-	unsigned int tempsize = 0;
-	while(bp != NULL){
+	unsigned int tempsize = 0;//bp의 size를 저장할 변수
+	while(bp != NULL){	//처음부터 검색
 		tempsize = GET_SIZE(HDRP(bp));
 		if(tempsize>=asize){
 			if(tempsize>=asize+32){
-				return place(bp,asize);
+				return place(bp,asize);	//block을 나누어 할당
 			}
-			free_ptr_delete(bp);
+			free_ptr_delete(bp);	//free block ptr제거
 			PUT(HDRP(bp),PACK(tempsize,1));
 			PUT(FTRP(bp),PACK(tempsize,1));
 			return bp;
@@ -140,11 +143,38 @@ static void *find_fit(size_t asize, void *bp){
 	return bp;
 }
 
+static void *extend_heap(size_t size, void *bp){
+	bp = mem_sbrk(size+2*WSIZE);
+	//heap 확장
+	if((long)bp == -1){	//실패시
+		return NULL;
+	}
+	//메모리 할당
+	PUT(HDRP(bp),PACK(size, 1));
+	PUT(FTRP(bp),PACK(size, 1));
+	PUT(FTRP(bp)+WSIZE,PACK(0,1));
+	return bp;
+}
+
+
 /*
  * free
  */
 void free (void *ptr) {
     if(!ptr) return;
+
+	if(GET_ALLOC(HDRP(ptr))==0) return;
+
+	size_t size = GET_SIZE(HDRP(ptr));
+
+	PUT(HDRP(ptr),PACK(size,0));
+	PUT(FTRP(ptr),PACK(size,0));
+
+	if(free_bp != NULL){
+		coalesce(ptr);
+	}else{
+		free_ptr_add(ptr);
+	}
 }
 
 /*
