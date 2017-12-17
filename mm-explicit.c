@@ -218,6 +218,44 @@ void *calloc (size_t nmemb, size_t size) {
 	return newptr;
 }
 
+static void coalesce(void *ptr){
+	size_t next_alloc = GET_ALLOC((char *)(FTRP(ptr))+WSIZE);
+	//다음 block 할당 여부
+	size_t prev_alloc = GET_ALLOC((char *)(ptr)-DSIZE);
+	//이전 block 할당 여부
+	size_t size = GET_SIZE(HDRP(ptr));
+	//ptr block 크기
+
+	if(prev_alloc && next_alloc){
+		free_ptr_add(ptr);
+	}
+	else if(prev_alloc && !next_alloc){
+		size+= GET_SIZE(HDRP(NEXT_BLKP(ptr)))+2*WSIZE;
+		free_ptr_deletr(NEXT_BLKP(ptr));
+		PUT(HDRP(ptr), PACK(size, 0));
+		PUT(FTRP(ptr), PACK(size, 0));
+		free_ptr_add(ptr);
+	}
+	else if(!prev_alloc && next_alloc){
+		ptr = PREV_BLKP(ptr);
+		size += GET_SIZE(HDRP(ptr))+2*WSIZE;
+		PUT(HDRP(ptr), PACK(size, 0));
+		PUT(FTRP(ptr), PACK(size, 0));
+	}
+	else{
+		void * prev = PREV_BLKP(ptr);
+		void * next = NEXT_BLKP(ptr);
+		size += GET_SIZE(HDRP(prev))+GET_SIZE(HDRP(next))+4*WSIZE;
+		PUT(HDRP(prev), PACK(size, 0));
+		PUT(FTRP(prev), PACK(size, 0));
+		free_ptr_delete(next);
+	}
+}
+
+static void* place(void *ptr, size_t asize){
+
+
+}
 
 /*
  * Return whether the pointer is in the heap.
