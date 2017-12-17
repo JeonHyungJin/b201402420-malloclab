@@ -75,7 +75,7 @@
 /* rounds up to the nearest multiple of ALIGNMENT */
 #define ALIGN(p) (((size_t)(p) + (ALIGNMENT-1)) & ~0x7)
 
-static void #extend_heap(size_t size, void *bp);
+static void *extend_heap(size_t size, void *bp);
 static void *find_fit(size_t asize, void *bp);
 static void coalesce(void *ptr);
 static void *place(void *ptr, size_t asize);
@@ -185,10 +185,10 @@ void *realloc(void *oldptr, size_t size) {
 	void *newptr;
 
 	if(size==0){
-		mm_free(ptr);
+		mm_free(oldptr);
 		return 0;
 	}
-	if(ptr==NULL){
+	if(oldptr==NULL){
 		return mm_malloc(size);
 	}
 	newptr = mm_malloc(size);
@@ -196,11 +196,11 @@ void *realloc(void *oldptr, size_t size) {
 	if(!newptr){
 		return 0;
 	}
-	oldsize = GET_SIZE(HDRP(ptr));
+	oldsize = GET_SIZE(HDRP(oldptr));
 	if(size < oldsize)	oldsize = size;
-	memcpy(newptr,ptr,oldsize);
+	memcpy(newptr,oldptr,oldsize);
 
-	mm_free(ptr);
+	mm_free(oldptr);
 
 	return newptr;
 }
@@ -231,7 +231,7 @@ static void coalesce(void *ptr){
 	}
 	else if(prev_alloc && !next_alloc){
 		size+= GET_SIZE(HDRP(NEXT_BLKP(ptr)))+2*WSIZE;
-		free_ptr_deletr(NEXT_BLKP(ptr));
+		free_ptr_delete(NEXT_BLKP(ptr));
 		PUT(HDRP(ptr), PACK(size, 0));
 		PUT(FTRP(ptr), PACK(size, 0));
 		free_ptr_add(ptr);
@@ -253,7 +253,28 @@ static void coalesce(void *ptr){
 }
 
 static void* place(void *ptr, size_t asize){
+	int csize = GET_SIZE(HDRP(ptr))-asize-2*WSIZE;
 
+	PUT(HDRP(ptr),PACK(csize,0));
+	PUT(FTRP(ptr),PACK(csize,0));
+
+	void *p=NEXT_BLKP(ptr);
+
+	PUT(HDRP(p),PACK(asize,1));
+	PUT(FTRP(p),PACK(asize,1));
+	return p;
+}
+
+static void free_ptr_add(void *ptr){
+	void *head = free_bp;
+	NEXT_FREE_BLKP(ptr,head);
+	PREV_FREE_BLKP(ptr,NULL);
+	if(head!=NULL)
+		PREV_FREE_BLKP(head,ptr);
+	free_bp = ptr;
+}
+
+static void free_ptr_delete(void *ptr){
 
 }
 
