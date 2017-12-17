@@ -58,15 +58,15 @@
 #define GET_ALLOC(p) (GET(p)&0x1)	//block할당  여부
 
 #define HDRP(bp) ((char *)(bp)-WSIZE)	//bp의 header주소
-#define FTRP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp))-DSIZE)	//dp의 footer주소 계산
-#define NEXT_BLKP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp)))	//bp를 이용해서 다음block주소계산
-#define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE((char *)(bp)-DSIZE))	//bp를이용해서 이전 block주소계산
+#define FTRP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp)))	//dp의 footer주소 계산
+#define NEXT_BLKP(bp) ((char *)(bp)+GET_SIZE(HDRP(bp))+2*WSIZE)	//bp를 이용해서 다음block주소계산
+#define PREV_BLKP(bp) ((char *)(bp)-GET_SIZE((char *)(bp)-DSIZE)-2*WSIZE)	//bp를이용해서 이전 block주소계산
 
-#define NEXT_FREEP(bp) ((char *)(bp))
-#define PREV_FREEP(bp) ((char *)(bp)+WSIZE)
+#define NEXT_FREEP(bp) (*(void **)(bp+DSIZE))
+#define PREV_FREEP(bp) (*(void **)bp)
 
-#define NEXT_FREE_BLKP(bp) ((char *)GET8((char *)(bp)))
-#define PREV_FREE_BLKP(bp) ((char *)GET8((char *)(bp)+WSIZE))
+#define NEXT_FREE_BLKP(bp, ptr) (NEXT_FREEP(bp)=ptr)
+#define PREV_FREE_BLKP(bp, ptr) (PREV_FREEP(bp)= ptr)
 
 #define SIZE_T_SIZE (ALIGN(sizeof(size_t)))
 #define SIZE_PTR(p) ((size_t*)(((char *)(p))-SIZE_T_SIZE))
@@ -96,7 +96,7 @@ int mm_init(void) {
 		return -1;
 	}
 	//할당
-	PUT(heap_bottom,Pack(0,1));
+	PUT(heap_bottom,PACK(0,1));
 	PUT((char*)heap_bottom+WSIZE,PACK(0,1));
 	return 0;
 }
@@ -275,7 +275,20 @@ static void free_ptr_add(void *ptr){
 }
 
 static void free_ptr_delete(void *ptr){
+	void *next=NEXT_FREEP(ptr);
+	void *prev=PREV_FREEP(ptr);
 
+	if(prev ==NULL){
+		free_bp=next;
+		if(next!=NULL){
+			PREV_FREE_BLKP(next,NULL);
+		}
+	}else{
+		NEXT_FREE_BLKP(prev,next);
+		if(next!=NULL){
+			PREV_FREE_BLKP(next,prev);
+		}
+	}
 }
 
 /*
